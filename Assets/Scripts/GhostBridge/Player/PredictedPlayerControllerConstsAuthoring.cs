@@ -7,10 +7,10 @@ public class PredictedPlayerControllerConstsAuthoring : MonoBehaviour
 {
     [field: Header("Player Movement Speeds")]
     [field: SerializeField, Tooltip("Walk speed of the character in m/s")]
-    public float WalkSpeed { get; private set; } = 2.35f;
+    public float WalkSpeed { get; private set; } = 5.2f;
 
     [field: SerializeField, Tooltip("Sprint speed of the character in m/s")]
-    public float SprintSpeed { get; private set; } = 4.7f;
+    public float SprintSpeed { get; private set; } = 7.4f;
 
     [field: Header("Player Rotation Smoothing Times")]
     [field: SerializeField, Tooltip("How fast the character turns to face movement direction while walking")]

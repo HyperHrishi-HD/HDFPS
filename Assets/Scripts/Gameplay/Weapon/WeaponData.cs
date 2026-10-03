@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 
 namespace Unity.MP_FPS
 {
@@ -23,8 +23,8 @@ namespace Unity.MP_FPS
         public WeaponType Type = WeaponType.Hitscan;
         public ReticleType ReticleType = ReticleType.TCross;
 
-        [Header("Firing Mechanics")] [Tooltip("Shots per second")]
-        public float CooldownInMs = 10f;
+        [Header("Firing Mechanics")] [Tooltip("Minimum delay between shots, in seconds.")]
+        public float CooldownInMs = 0.1f;
 
         public float Damage = 15f;
 

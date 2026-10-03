@@ -1,4 +1,4 @@
-﻿using UnityEngine;
+using UnityEngine;
 using System.Collections.Generic;
 using System;
 using Unity.NetCode;
@@ -80,7 +80,9 @@ namespace Unity.MP_FPS
                     return;
                 }
 
-                var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(weaponId);
+                var weaponData = WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null
+                    ? WeaponManager.Instance.WeaponRegistry.GetWeaponData(weaponId)
+                    : null;
                 if (weaponData == null)
                 {
                     Debug.Log("Cannot spawn muzzle flash: weapon data is null");
@@ -107,7 +109,11 @@ namespace Unity.MP_FPS
 
                     vfxInstance.SetActive(true);
 
-                    GameManager.Instance.SoundSystem.CreateEmitter(weaponData.WeaponFireSfx, spawnPoint);
+                    if (weaponData.WeaponFireSfx != null && GameManager.Instance != null &&
+                        GameManager.Instance.SoundSystem != null)
+                    {
+                        GameManager.Instance.SoundSystem.CreateEmitter(weaponData.WeaponFireSfx, spawnPoint);
+                    }
                 }
                 catch (Exception e)
                 {
@@ -117,6 +123,32 @@ namespace Unity.MP_FPS
             catch (Exception e)
             {
                 Debug.LogError("Error in SpawnMuzzleFlash: " + e.Message);
+            }
+        }
+
+        public async void SpawnImpact(WeaponData weaponData, Vector3 position, Vector3 normal)
+        {
+            try
+            {
+                if (weaponData?.ProjectileHitVfxPrefab?.GhostPrefab == null ||
+                    !weaponData.ProjectileHitVfxPrefab.GhostPrefab.RuntimeKeyIsValid())
+                {
+                    return;
+                }
+
+                var rotation = Quaternion.LookRotation(normal.sqrMagnitude > 0.001f ? normal : Vector3.up);
+                var vfxInstance = await weaponData.ProjectileHitVfxPrefab.GhostPrefab.InstantiateAsync(position, rotation).Task;
+                if (vfxInstance == null)
+                {
+                    return;
+                }
+
+                vfxInstance.AddComponent<DestroyAfterDelay>().Lifetime = 1.25f;
+                vfxInstance.SetActive(true);
+            }
+            catch (Exception e)
+            {
+                Debug.LogWarning($"Failed to spawn impact VFX: {e.Message}");
             }
         }
 

@@ -41,6 +41,9 @@ namespace Unity.MP_FPS
         const string k_PlayerCharacterKey = "PlayerCharacer";
         const string k_ConnectionModeKey = "ConnectionMode";
         const string k_SessionNameKey = "SessionName";
+        const string k_MouseSensitivityKey = "MouseSensitivity";
+        const string k_GamepadSensitivityKey = "GamepadLookSensitivity";
+        const string k_InvertYKey = "InvertY";
 
         GameSettings()
         {
@@ -48,6 +51,9 @@ namespace Unity.MP_FPS
             m_PlayerCharacter = PlayerPrefs.GetInt(k_PlayerCharacterKey, 0);  
             m_ConnectionMode = PlayerPrefs.GetInt(k_ConnectionModeKey, 0);
             m_SessionName = PlayerPrefs.GetString(k_SessionNameKey, "default-session");
+            m_MouseSensitivity = PlayerPrefs.GetFloat(k_MouseSensitivityKey, 3.7f);
+            m_GamepadLookSensitivity = PlayerPrefs.GetFloat(k_GamepadSensitivityKey, 140f);
+            m_InvertY = PlayerPrefs.GetInt(k_InvertYKey, 0) != 0;
         }
 
         public event EventHandler<BindablePropertyChangedEventArgs> propertyChanged;
@@ -223,6 +229,62 @@ namespace Unity.MP_FPS
 
                 m_ConnectionMode = value;
                 PlayerPrefs.SetInt(k_ConnectionModeKey, value);
+            }
+        }
+
+        float m_MouseSensitivity = 3.7f;
+        [CreateProperty]
+        public float MouseSensitivity
+        {
+            get => m_MouseSensitivity;
+            set
+            {
+                value = Mathf.Clamp(value, 0.4f, 12f);
+                if (Mathf.Approximately(m_MouseSensitivity, value))
+                {
+                    return;
+                }
+
+                m_MouseSensitivity = value;
+                PlayerPrefs.SetFloat(k_MouseSensitivityKey, value);
+                Notify();
+            }
+        }
+
+        float m_GamepadLookSensitivity = 140f;
+        [CreateProperty]
+        public float GamepadLookSensitivity
+        {
+            get => m_GamepadLookSensitivity;
+            set
+            {
+                value = Mathf.Clamp(value, 40f, 360f);
+                if (Mathf.Approximately(m_GamepadLookSensitivity, value))
+                {
+                    return;
+                }
+
+                m_GamepadLookSensitivity = value;
+                PlayerPrefs.SetFloat(k_GamepadSensitivityKey, value);
+                Notify();
+            }
+        }
+
+        bool m_InvertY;
+        [CreateProperty]
+        public bool InvertY
+        {
+            get => m_InvertY;
+            set
+            {
+                if (m_InvertY == value)
+                {
+                    return;
+                }
+
+                m_InvertY = value;
+                PlayerPrefs.SetInt(k_InvertYKey, value ? 1 : 0);
+                Notify();
             }
         }
 

@@ -165,7 +165,8 @@ public class FirstPersonController : MonoBehaviour
             CurrentRotation = worldRotation;
 
             Quaternion rot = worldRotation;
-            PitchDegrees = rot.eulerAngles.y;
+            YawDegrees = rot.eulerAngles.y;
+            PitchDegrees = 0f;
         }
     }
 
@@ -449,8 +450,7 @@ public class FirstPersonController : MonoBehaviour
             bool isClientOwned = (m_PlayerGhost.Role == MultiplayerRole.ClientOwned);
             if (isClientOwned)
             {
-                Unity.MP_FPS.EventHandler eventHandler = m_Animator_1P.GetComponent<Unity.MP_FPS.EventHandler>();
-                eventHandler.onFootDown = true;
+                TryTriggerFootstep();
             }
         }
         else if (!isGrounded && state.MovementType == MovementType.Standing)
@@ -541,11 +541,17 @@ public class FirstPersonController : MonoBehaviour
             animator.SetTrigger(AnimationParameters.Reload);
 
 
-            var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(ghostState.EquippedWeaponID);
-            if (weaponData != null && weaponData.WeaponReloadSfx != null)
+            if (WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null)
             {
-                Unity.MP_FPS.EventHandler eventHandler = animator.GetComponent<Unity.MP_FPS.EventHandler>();
-                eventHandler.reloadSFX = weaponData.WeaponReloadSfx;
+                var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(ghostState.EquippedWeaponID);
+                if (weaponData != null && weaponData.WeaponReloadSfx != null)
+                {
+                    var eventHandler = animator.GetComponent<Unity.MP_FPS.EventHandler>();
+                    if (eventHandler != null)
+                    {
+                        eventHandler.reloadSFX = weaponData.WeaponReloadSfx;
+                    }
+                }
             }
 
             _lastAnimatedReloadTick = ghostState.LastReloadTick;
@@ -680,7 +686,8 @@ public class FirstPersonController : MonoBehaviour
                 case MovementType.Standing:
                 case MovementType.Jumping:
                 case MovementType.Falling:
-                    stateConsts = consts.Walk;
+                    bool sprinting = input.Sprint && math.lengthsq(input.MoveInput) > 0.01f;
+                    stateConsts = sprinting ? consts.Sprint : consts.Walk;
                     break;
                 default:
                     Debug.LogError(
@@ -745,9 +752,9 @@ public class FirstPersonController : MonoBehaviour
         inputMagnitude = inputMagnitude >= 0.4f ? 1f : 0f;
 
         float applyTargetSpeed = modifiedTargetMoveSpeed * inputMagnitude;
-        float blendAlpha = deltaTime * stateConsts.SpeedChangeRate;
+        float blendAlpha = 1f - math.exp(-math.max(stateConsts.SpeedChangeRate, 0.01f) * deltaTime);
 
-        state.MovementSpeed = applyTargetSpeed;
+        state.MovementSpeed = math.lerp(state.MovementSpeed, applyTargetSpeed, math.saturate(blendAlpha));
         state.AnimatorTargetSpeedChangeRate = stateConsts.SpeedChangeRate;
         state.AnimatorTargetSpeed = stateConsts.Speed * inputMagnitude;
         state.AnimatorMotionSpeed = inputMagnitude > 0f ? state.MovementSpeed : 1f; //play the idle at 1x
@@ -878,8 +885,7 @@ public class FirstPersonController : MonoBehaviour
                     if (t >= 0.5f)
                     {
                         footstepStartTimer += 0.5f;
-                        Unity.MP_FPS.EventHandler eventHandler = m_Animator_1P.GetComponent<Unity.MP_FPS.EventHandler>();
-                        eventHandler.onFootDown = true;
+                        TryTriggerFootstep();
                     }
                 }
             }
@@ -914,6 +920,15 @@ public class FirstPersonController : MonoBehaviour
             case MovementType.Falling:
             case MovementType.Jumping:
                 {
+                    bool canCoyoteJump = state.MovementType == MovementType.Falling
+                                         && state.PreviousMovementType == MovementType.Standing
+                                         && state.TimeInState <= 0.12f;
+                    if (canCoyoteJump && AccumulateJump(ref state, in input, in consts, deltaTime))
+                    {
+                        AccumulateGravity(ref state, in consts, deltaTime);
+                        break;
+                    }
+
                     state.Jump = true;
                     state.JumpTimeoutDelta = math.max(consts.JumpTimeout, state.JumpTimeoutDelta);
 
@@ -1176,5 +1191,19 @@ public class FirstPersonController : MonoBehaviour
     public static void MovementLog(string message)
     {
         Debug.Log($"[{UnityEngine.Time.frameCount}] {message}");
+    }
+
+    private void TryTriggerFootstep()
+    {
+        if (m_Animator_1P == null)
+        {
+            return;
+        }
+
+        var eventHandler = m_Animator_1P.GetComponent<Unity.MP_FPS.EventHandler>();
+        if (eventHandler != null)
+        {
+            eventHandler.onFootDown = true;
+        }
     }
 }

@@ -68,11 +68,11 @@ namespace Unity.MP_FPS.Client
                 m_CancelButton.clicked -= OnCancelPressed;
             }
 
-            static void OnConfirmPressed() => GameSettings.Instance.CancellableUserInputPopUp.SetResult();
+            static void OnConfirmPressed() => GameSettings.Instance.CancellableUserInputPopUp?.SetResult();
 
             static void OnCancelPressed()
             {
-                GameSettings.Instance.CancellableUserInputPopUp.SetCanceled();
+                GameSettings.Instance.CancellableUserInputPopUp?.SetCanceled();
                 ConnectionSettings.Instance.IPAddress = ConnectionSettings.DefaultServerAddress;
                 ConnectionSettings.Instance.Port = ConnectionSettings.DefaultServerPort.ToString();
             }

@@ -1,7 +1,7 @@
 <ui:UXML xmlns:ui="UnityEngine.UIElements" xmlns:uie="UnityEditor.UIElements" editor-extension-mode="False">
     <Style src="project://database/Assets/UI%20Toolkit/GameUI/PlayerHUD.uss?fileID=7433441132597879392&amp;guid=89bbe73027f904b8da50bf55484c285f&amp;type=3#PlayerHUD"/>
     <ui:VisualElement name="weapon-info-container" picking-mode="Ignore">
-        <ui:Label name="weapon-type-label" text="Weapon Name" enabled="true" style="display: none;"/>
+        <ui:Label name="weapon-type-label" text="Weapon Name" enabled="true"/>
         <ui:Label name="reloading-label" text="RELOADING"/>
         <ui:VisualElement name="weapon-icon" style="display: none;"/>
         <ui:VisualElement name="ammo-container">
@@ -16,5 +16,15 @@
     </ui:VisualElement>
     <ui:VisualElement name="reticle-container" picking-mode="Ignore">
         <ui:VisualElement name="player-reticle" picking-mode="Ignore"/>
+        <ui:VisualElement name="hit-marker" picking-mode="Ignore" class="hit-marker">
+            <ui:VisualElement picking-mode="Ignore" class="hit-marker-arm hit-marker-arm-a"/>
+            <ui:VisualElement picking-mode="Ignore" class="hit-marker-arm hit-marker-arm-b"/>
+        </ui:VisualElement>
+    </ui:VisualElement>
+    <ui:VisualElement name="mobile-controls" picking-mode="Ignore" class="mobile-controls">
+        <ui:Button name="mobile-reload-button" text="R" class="mobile-button mobile-reload"/>
+        <ui:Button name="mobile-jump-button" text="JUMP" class="mobile-button mobile-jump"/>
+        <ui:Button name="mobile-sprint-button" text="SPRINT" class="mobile-button mobile-sprint"/>
+        <ui:Button name="mobile-fire-button" text="FIRE" class="mobile-button mobile-fire"/>
     </ui:VisualElement>
 </ui:UXML>

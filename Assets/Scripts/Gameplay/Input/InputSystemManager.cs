@@ -1,4 +1,4 @@
-﻿using Unity.MP_FPS;
+using Unity.MP_FPS;
 using UnityEngine.InputSystem;
 using UnityEngine.InputSystem.Users;
 using UnityEngine;
@@ -31,8 +31,20 @@ public class InputSystemManager : Singleton<InputSystemManager>
 
     public static InputUser GetFirstInputUser()
     {
+        return TryGetFirstInputUser(out var user) ? user : default;
+    }
+
+    public static bool TryGetFirstInputUser(out InputUser user)
+    {
         var allPlayers = InputUser.all;
-        return allPlayers[0];
+        if (allPlayers.Count == 0)
+        {
+            user = default;
+            return false;
+        }
+
+        user = allPlayers[0];
+        return user.valid;
     }
 
     public static bool TryGetUserById(int id, out InputUser user)
@@ -158,14 +170,32 @@ public class InputSystemManager : Singleton<InputSystemManager>
 
     private void PairInitialUsers()
     {
+        InputUser kbmUser = default;
         if (Keyboard.current != null)
         {
-            var newUser = PairDeviceWithUser(Keyboard.current);
+            kbmUser = PairDeviceWithUser(Keyboard.current);
+        }
 
-            if (Mouse.current != null)
+        if (Mouse.current != null)
+        {
+            if (kbmUser.valid)
             {
-                InputUser.PerformPairingWithDevice(Mouse.current, newUser);
+                InputUser.PerformPairingWithDevice(Mouse.current, kbmUser);
             }
+            else
+            {
+                PairDeviceWithUser(Mouse.current);
+            }
+        }
+
+        if (Gamepad.current != null)
+        {
+            PairDeviceWithUser(Gamepad.current);
+        }
+
+        if (Touchscreen.current != null)
+        {
+            PairDeviceWithUser(Touchscreen.current);
         }
 
         m_HasPairedInitialUserDevices = true;

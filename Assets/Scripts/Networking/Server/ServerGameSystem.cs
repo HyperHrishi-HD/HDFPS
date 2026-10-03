@@ -206,7 +206,9 @@ namespace Unity.MP_FPS
 
             var weaponId = characterIndex == 0 ? (uint)0 : 1;
             
-            var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(weaponId);
+            var weaponData = WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null
+                ? WeaponManager.Instance.WeaponRegistry.GetWeaponData(weaponId)
+                : null;
             var magazineSize = weaponData != null ? weaponData.MagazineSize : 30; // Default to 30 if weapon not found
 
             ecb.SetComponent(playerEntity, new GhostOwner { NetworkId = ownerNetworkId.Value });

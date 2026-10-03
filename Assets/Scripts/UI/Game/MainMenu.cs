@@ -101,10 +101,11 @@ namespace Unity.MP_FPS.Client
 
         void OnDisable()
         {
-            m_CreateGameButton.clicked -= OnCreateGamePressed;
-            m_ConnectionModeGroup.UnregisterValueChangedCallback(OnConnectionModeChanged);
-            m_ConnectToServerButton.clicked -= OnConnectToServerPressed;
-            m_QuitButton.clicked -= OnQuitPressed;
+            if (m_CreateGameButton != null) m_CreateGameButton.clicked -= OnCreateGamePressed;
+            if (m_StartHostButton != null) m_StartHostButton.clicked -= OnStartHostPressed;
+            if (m_ConnectionModeGroup != null) m_ConnectionModeGroup.UnregisterValueChangedCallback(OnConnectionModeChanged);
+            if (m_ConnectToServerButton != null) m_ConnectToServerButton.clicked -= OnConnectToServerPressed;
+            if (m_QuitButton != null) m_QuitButton.clicked -= OnQuitPressed;
         }
 
         void OnConnectionModeChanged(ChangeEvent<int> evt)

@@ -4,6 +4,10 @@
         <ui:VisualElement name="Container" picking-mode="Ignore" class="container container-in-game">
             <ui:VisualElement name="UIWrapper" picking-mode="Ignore">
                 <ui:VisualElement name="InGamePanel" picking-mode="Ignore">
+                    <ui:Label text="PAUSED" name="PauseTitle" picking-mode="Ignore"/>
+                    <ui:Slider label="Mouse Sensitivity" name="MouseSensitivitySlider" low-value="0.4" high-value="12" value="3.7"/>
+                    <ui:Slider label="Gamepad Look" name="GamepadSensitivitySlider" low-value="40" high-value="360" value="140"/>
+                    <ui:Toggle label="Invert Y" name="InvertYToggle"/>
                     <ui:Button text="Resume" name="ResumeButton" tabindex="0" selectable="false" focusable="false"/>
                     <ui:Button text="Main Menu" name="MainMenuButton" tabindex="1"/>
                     <ui:Button text="Quit" name="QuitButton" tabindex="2"/>

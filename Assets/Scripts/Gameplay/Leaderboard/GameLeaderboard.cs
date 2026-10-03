@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using Unity.Collections;
 using Unity.Entities;
 using Unity.NetCode;
@@ -31,8 +31,7 @@ namespace Gameplay.Leaderboard
 
         protected static void ResetStaticState()
         {
-            _pendingPlayers.Clear();
-            _pendingPlayers = null;
+            _pendingPlayers = new Queue<(int, FixedString64Bytes)>();
         }
 
         public struct PlayerScoreEntry : IBufferElementData
@@ -56,6 +55,7 @@ namespace Gameplay.Leaderboard
 
         public static void AddPlayer(int networkId, FixedString64Bytes playerName)
         {
+            _pendingPlayers ??= new Queue<(int, FixedString64Bytes)>();
             _pendingPlayers.Enqueue((networkId, playerName));
         }
 
@@ -160,7 +160,7 @@ namespace Gameplay.Leaderboard
         public List<PlayerScoreEntry> GetScores()
         {
             var scores = new List<PlayerScoreEntry>();
-            if (GhostGameObject.IsGhostLinked())
+            if (GhostGameObject != null && GhostGameObject.IsGhostLinked())
             {
                 var buffer = GhostGameObject.GetGhostDynamicBuffer<PlayerScoreEntry>();
                 foreach (var entry in buffer)
@@ -243,7 +243,7 @@ namespace Gameplay.Leaderboard
                     VictimName = victimName
                 };
                 GhostGameObject.BroadcastRPC(killFeedRpc);
-                ActionFeed.Instance.AnnounceKill(killerName.ToString(), victimName.ToString());
+                ActionFeed.Instance?.AnnounceKill(killerName.ToString(), victimName.ToString());
             }
 
             while (_joinedQueue.Count > 0)
@@ -255,7 +255,7 @@ namespace Gameplay.Leaderboard
                     PlayerName = playerName,
                 };
                 GhostGameObject.BroadcastRPC(joinRpc);
-                ActionFeed.Instance.AnnouncePlayerJoined(playerName.ToString());
+                ActionFeed.Instance?.AnnouncePlayerJoined(playerName.ToString());
             }
         }
 
@@ -266,14 +266,13 @@ namespace Gameplay.Leaderboard
             // Consume any kill feed RPCs received this frame
             while (GhostGameObject.ConsumeRPC(out KillFeedEntryRpc killFeedRpc))
             {
-                // Invoke the event for the UI to handle
-                ActionFeed.Instance.AnnounceKill(killFeedRpc.KillerName.ToString(),
+                ActionFeed.Instance?.AnnounceKill(killFeedRpc.KillerName.ToString(),
                     killFeedRpc.VictimName.ToString());
             }
 
             while (GhostGameObject.ConsumeRPC(out PlayerJoinedEntryRpc joinRpc))
             {
-                ActionFeed.Instance.AnnouncePlayerJoined(joinRpc.PlayerName.ToString());
+                ActionFeed.Instance?.AnnouncePlayerJoined(joinRpc.PlayerName.ToString());
             }
         }
     }

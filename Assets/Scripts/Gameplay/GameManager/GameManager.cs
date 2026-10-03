@@ -66,47 +66,85 @@ namespace Unity.MP_FPS
             else
             {
                 m_SoundSystem = new SoundSystem();
-                AudioListener audioListener = MainCameraSingleton.Instance.GetComponent<AudioListener>();
+                Transform listenerTransform = null;
+                if (MainCameraSingleton.Instance != null)
+                {
+                    var audioListener = MainCameraSingleton.Instance.GetComponent<AudioListener>();
+                    if (audioListener != null)
+                    {
+                        listenerTransform = audioListener.transform;
+                    }
+                }
+
                 SoundGameObjects = new SoundGameObjectPool("SoundSystemSources", MaxSoundGameObjects);
-                m_SoundSystem.Init(audioListener.transform, MaxSoundEmitters, SoundGameObjects, AudioMixer);
+                m_SoundSystem.Init(listenerTransform != null ? listenerTransform : transform, MaxSoundEmitters,
+                    SoundGameObjects, AudioMixer);
             }
         }
         
+        bool m_InitializingPresentation;
+
         async void Start()
         {
-            Application.runInBackground = true; //Prevents dropped connections during multiplayer gameplay
+            await InitializePresentationAsync();
+        }
 
-            MainCameraSingleton.Instance.GetComponent<Camera>().enabled = true;
-            var audioListener = MainCameraSingleton.Instance.GetComponent<AudioListener>();
-            if (audioListener != null)
+        public async Task InitializePresentationAsync()
+        {
+            if (m_InitializingPresentation)
             {
-                m_SoundSystem.SetListenerTransform(audioListener.transform);
+                return;
             }
 
-            GameSettings.Instance.MainMenuSceneLoaded = false;
-            if (SceneManager.GetActiveScene().name == "MainMenu")
+            m_InitializingPresentation = true;
+            try
             {
-                m_LoadingMainMenuCancel = new CancellationTokenSource();
-                try
+                Application.runInBackground = true; //Prevents dropped connections during multiplayer gameplay
+
+                if (MainCameraSingleton.Instance != null)
                 {
-                    m_LoadingMainMenu = StartMainMenuAsync(m_LoadingMainMenuCancel.Token);
-                    await m_LoadingMainMenu;
+                    var menuCamera = MainCameraSingleton.Instance.GetComponent<Camera>();
+                    if (menuCamera != null)
+                    {
+                        menuCamera.enabled = true;
+                    }
+
+                    var audioListener = MainCameraSingleton.Instance.GetComponent<AudioListener>();
+                    if (audioListener != null && m_SoundSystem != null)
+                    {
+                        m_SoundSystem.SetListenerTransform(audioListener.transform);
+                    }
                 }
-                catch (OperationCanceledException)
+
+                GameSettings.Instance.MainMenuSceneLoaded = false;
+                if (SceneManager.GetActiveScene().name == MainMenuSceneName)
                 {
-                    // Nothing to do when the task is cancelled.
+                    m_LoadingMainMenuCancel = new CancellationTokenSource();
+                    try
+                    {
+                        m_LoadingMainMenu = StartMainMenuAsync(m_LoadingMainMenuCancel.Token);
+                        await m_LoadingMainMenu;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        // Nothing to do when the task is cancelled.
+                    }
+                    finally
+                    {
+                        m_LoadingMainMenuCancel?.Dispose();
+                        m_LoadingMainMenuCancel = null;
+                    }
                 }
-                finally
+
+                // Ensures it only ever loads once
+                if (!SceneManager.GetSceneByName("Persistents").isLoaded)
                 {
-                    m_LoadingMainMenuCancel.Dispose();
-                    m_LoadingMainMenuCancel = null;
+                    SceneManager.LoadScene("Scenes/Persistents", LoadSceneMode.Additive);
                 }
             }
-
-            // Ensures it only ever loads once
-            if (!SceneManager.GetSceneByName("Persistents").isLoaded)
+            finally
             {
-                SceneManager.LoadScene("Scenes/Persistents", LoadSceneMode.Additive);
+                m_InitializingPresentation = false;
             }
         }
 
@@ -317,21 +355,34 @@ namespace Unity.MP_FPS
             LoadingData.Instance.UpdateLoading(LoadingData.LoadingSteps.WorldReplication);
             using var ghostCountQuery = world.EntityManager.CreateEntityQuery(ComponentType.ReadOnly<GhostCount>());
             var waitedForTicks = 0;
+            const int maxWaitTicks = 600;
             while (true)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+
                 if (ghostCountQuery.TryGetSingleton<GhostCount>(out var ghostCount))
                 {
-                    var synchronizingPercentage = ghostCount.GhostCountOnServer == 0
-                        ? math.saturate(ghostCount.GhostCountReceivedOnClient / (float)ghostCount.GhostCountOnServer)
-                        : waitedForTicks > 60
-                            ? 1f
-                            : 0f; // The server has no ghosts to replicate, so ghost loading is complete.
+                    float synchronizingPercentage;
+                    if (ghostCount.GhostCountOnServer <= 0)
+                    {
+                        // Server has no ghosts to replicate yet. Give it a short grace period, then continue.
+                        synchronizingPercentage = waitedForTicks > 60 ? 1f : 0f;
+                    }
+                    else
+                    {
+                        synchronizingPercentage = math.saturate(
+                            ghostCount.GhostCountReceivedOnClient / (float)ghostCount.GhostCountOnServer);
+                    }
 
                     LoadingData.Instance.UpdateLoading(LoadingData.LoadingSteps.WorldReplication, synchronizingPercentage);
-                    if (synchronizingPercentage > 0.99f)
+                    if (synchronizingPercentage > 0.99f || waitedForTicks >= maxWaitTicks)
                     {
                         return;
                     }
+                }
+                else if (waitedForTicks >= maxWaitTicks)
+                {
+                    return;
                 }
 
                 await Awaitable.NextFrameAsync(cancellationToken);
@@ -406,8 +457,16 @@ namespace Unity.MP_FPS
             LoadingData.Instance.UpdateLoading(LoadingData.LoadingSteps.WaitingConnection);
             // The GameManagerSystem is handling the connection/reconnection once the client world is created.
             ConnectionSettings.Instance.GameConnectionState = ConnectionState.State.Connecting;
+            var waitedFrames = 0;
+            const int connectionTimeoutFrames = 1800;
             while (ConnectionSettings.Instance.GameConnectionState == ConnectionState.State.Connecting)
             {
+                cancellationToken.ThrowIfCancellationRequested();
+                if (waitedFrames++ >= connectionTimeoutFrames)
+                {
+                    throw new TimeoutException("Timed out waiting for the game connection.");
+                }
+
                 await Awaitable.NextFrameAsync(cancellationToken);
             }
         }

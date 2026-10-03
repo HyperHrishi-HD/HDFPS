@@ -26,7 +26,7 @@ namespace Unity.MP_FPS
 
         public void ReloadAnimationSFXTrigger(AnimationEvent e)
         {
-            if (reloadSFX != null)
+            if (reloadSFX != null && GameManager.Instance != null && GameManager.Instance.SoundSystem != null)
             {
                 GameManager.Instance.SoundSystem.CreateEmitter(reloadSFX, transform);
             }
@@ -36,8 +36,11 @@ namespace Unity.MP_FPS
         {
             if (onFootDown)
             {
-                GameManager.Instance.SoundSystem.CreateEmitter(footstep, transform);
                 onFootDown = false;
+                if (footstep != null && GameManager.Instance != null && GameManager.Instance.SoundSystem != null)
+                {
+                    GameManager.Instance.SoundSystem.CreateEmitter(footstep, transform);
+                }
             }
         }
     }
