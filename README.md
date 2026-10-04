@@ -1,48 +1,42 @@
 # HDFPS
 
-A production-style multiplayer first-person shooter built on Unity 6, Netcode for Entities, and GhostBridge.
+Sci-fi arena FPS. Play it on the web at [hdfps.vercel.app](https://hdfps.vercel.app).
 
-Open `Assets/Scenes/MainMenu.unity` in **Unity 6000.5.0f1** (or newer 6000.5) and press Play.
+## Play in the browser
 
-## Play
+Open [hdfps.vercel.app](https://hdfps.vercel.app), enter a name, pick **Rifle** or **Shotgun**, then **Start Match**. Click the game once to lock the mouse.
 
-1. Set a player name and pick **Rifle** or **Shotgun**.
-2. Choose a connection mode:
-   - **Direct / Start Host** — LAN or same-machine listen server. Default port `7979`.
-   - **Direct / Connect to Server** — join a host by IP and port.
-   - **Relay / Create or Join Session** — Unity Gaming Services relay. Requires a project linked to UGS.
-3. Fight. Deaths respawn after 5 seconds. Tab shows the scoreboard.
+| Action | Keyboard / Mouse | Touch |
+| --- | --- | --- |
+| Move | WASD / arrows | Left stick |
+| Look | Mouse | Drag on the right |
+| Fire | Left click | FIRE |
+| Sprint | Shift | SPRINT |
+| Jump | Space | JUMP |
+| Reload | R | R |
+| Pause | Esc | — |
 
-Dedicated Linux servers can still be launched in batchmode; the game falls back to a null audio system when headless.
+Empty magazines auto-reload. Bots fight back and respawn. Pause includes sensitivity and invert-Y.
 
-## Controls
+The playable build lives in `web/` (Three.js, no Unity runtime required).
 
-| Action | Keyboard / Mouse | Gamepad | Touch |
-| --- | --- | --- | --- |
-| Move | WASD / arrows | Left stick | Left half of the screen |
-| Look | Mouse | Right stick | Right half of the screen |
-| Fire | Left mouse | Right trigger / bumper | FIRE button |
-| Aim walk / sprint | Left Shift | Left stick click / left trigger | SPRINT button |
-| Jump | Space | South button | JUMP button |
-| Reload | R | West button | R button |
-| Scoreboard | Tab | Select | — |
-| Pause | Esc | Start | — |
+## Deploy on Vercel
 
-Pause includes mouse sensitivity, gamepad look speed, and invert-Y. Settings persist in PlayerPrefs.
+This repo also contains the Unity project. For [hdfps.vercel.app](https://hdfps.vercel.app) only the web game should ship.
 
-## Weapons
+1. Import the GitHub repo in Vercel.
+2. Set **Root Directory** to `web` (Project Settings → General).
+3. Framework Preset: **Other**.
+4. Deploy.
 
-- **Assault Rifle** — hitscan, 30-round mag, 0.1s shot interval.
-- **Shotgun** — projectile pellets, 10-round mag, slower fire, heavier recoil.
+If Root Directory stays at the repo root, `vercel.json` already rewrites `/` to `/web`. `.vercelignore` keeps Unity assets out of the deployment.
 
-Empty magazines auto-reload. Impacts, muzzle flash, hit markers, and a damage vignette play on the local client.
+## Unity editor project
 
-## Project layout
+Open `Assets/Scenes/MainMenu.unity` in **Unity 6000.5.0f1** for the Netcode / GhostBridge multiplayer template.
 
-- `Assets/Scripts/Gameplay` — movement, weapons, HUD, camera, VFX
-- `Assets/Scripts/Networking` — session bootstrap, client/server game flow
-- `Assets/Scripts/GhostBridge` — hybrid GameObject / ghost prediction
-- `Assets/Scenes` — MainMenu, GameScene, subscenes, Persistents
-- `Assets/Data/Weapons` — ScriptableObject weapon tuning
+- Direct / Start Host — LAN listen server, default port `7979`
+- Direct / Connect — join by IP
+- Relay — Unity Gaming Services
 
-Built scenes: MainMenu, GameScene, GameResourcesSubScene, Persistents, SpawnPointsSubScene.
+Unity controls match the table above, plus Tab for the scoreboard and gamepad (right stick look, triggers fire, Start pause).

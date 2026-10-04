@@ -1,0 +1,11 @@
+Assets
+Packages
+ProjectSettings
+*.csproj
+*.sln
+Library
+Temp
+Logs
+UserSettings
+.utmp
+.git
