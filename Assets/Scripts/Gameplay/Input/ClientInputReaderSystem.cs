@@ -4,20 +4,25 @@ using Unity.Mathematics;
 using Unity.NetCode;
 using Unity.Transforms;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 [UpdateInGroup(typeof(GhostInputSystemGroup))]
 public partial class ClientInputReaderSystem : SystemBase
 {
     private float2 _accumulatedLook;
-
     private Entity _lastKnownPlayerEntity = Entity.Null;
+    private bool _prevMobileJump;
+    private bool _prevMobileReload;
+    private Vector2 _leftStickOrigin;
+    private bool _leftStickActive;
 
     protected override void OnUpdate()
     {
+        GameplayInputState.Tick(SystemAPI.Time.DeltaTime);
+
         Entity currentLocalPlayer = Entity.Null;
         float3 playerPosition = float3.zero;
 
-        // 1. Find the local player entity and its position
         foreach (var (transform, ghost, owner, entity) in SystemAPI.Query<
                          RefRO<LocalTransform>,
                          RefRO<PredictedPlayerGhost>,
@@ -26,31 +31,21 @@ public partial class ClientInputReaderSystem : SystemBase
         {
             currentLocalPlayer = entity;
             playerPosition = transform.ValueRO.Position;
-            break; // Found local player, stop searching
+            break;
         }
 
-        // 2. Check for Respawn (Entity ID changed)
         if (currentLocalPlayer != Entity.Null)
         {
             if (currentLocalPlayer != _lastKnownPlayerEntity)
             {
                 float3 directionToOrigin = math.normalizesafe(new float3(0, 0, -12) - playerPosition);
-
-                // Calculate Yaw (rotation around Y axis)
-                // atan2(x, z) gives the angle in radians from the forward (Z) axis
                 float yawRadians = math.atan2(directionToOrigin.x, directionToOrigin.z);
-
-                // RESET LOOK: Yaw to face center, Pitch to 0 (Horizontal)
                 _accumulatedLook = new float2(math.degrees(yawRadians), 0f);
-
-                // Update tracker so we don't reset again while this character is alive
                 _lastKnownPlayerEntity = currentLocalPlayer;
             }
         }
         else
         {
-            // Player is dead or not yet spawned.
-            // Reset the tracker so the *next* spawn triggers the logic.
             _lastKnownPlayerEntity = Entity.Null;
         }
 
@@ -59,49 +54,140 @@ public partial class ClientInputReaderSystem : SystemBase
             input.ValueRW = new ClientInput();
             movementInput.ValueRW = new ClientMovementInput();
 
-            var user = InputSystemManager.GetFirstInputUser();
-
-            if (user.valid)
+            var playerInput = new PlayerInput();
+            if (!GameplayInputState.ShouldBlockGameplayInput())
             {
-                var controls = (InputSystem_Actions)user.actions;
+                GatherGameplayInput(ref playerInput);
+            }
 
-                var playerInput = new PlayerInput();
+            input.ValueRW.SetInput(0, playerInput);
+            movementInput.ValueRW.SetInput(0, playerInput);
+        }
 
-                ProcessGameplayInput(controls, ref playerInput);
+        GameplayInputState.MobileReloadPressed = false;
+    }
 
-                // movement
-                float2 moveVector = controls.Player.Move.ReadValue<Vector2>();
-                playerInput.MoveInput = moveVector;
+    private void GatherGameplayInput(ref PlayerInput playerInput)
+    {
+        var controls = GameInput.Actions;
+        var settings = GameSettings.Instance;
+        float mouseSensitivity = settings != null ? settings.MouseSensitivity : 3.7f;
+        float stickSensitivity = settings != null ? settings.GamepadLookSensitivity : 140f;
+        bool invertY = settings != null && settings.InvertY;
+        float dt = SystemAPI.Time.DeltaTime;
 
-                var addedDelta = (float2)controls.Player.LookDelta.ReadValue<Vector2>();
+        float2 moveVector = float2.zero;
+        bool jump = false;
+        bool shoot = false;
+        bool reload = false;
+        bool sprint = false;
 
-                const float sensitivity = 3.7f;
-                var lookDelta = addedDelta * sensitivity;
+        if (controls != null)
+        {
+            moveVector = (float2)controls.Player.Move.ReadValue<Vector2>();
+            if (math.lengthsq(moveVector) < 0.0001f)
+            {
+                moveVector = (float2)controls.FPS.Move.ReadValue<Vector2>();
+            }
 
-                // Accumulate the delta to our persistent rotation value
-                _accumulatedLook.x += lookDelta.x;
-                _accumulatedLook.y -= lookDelta.y; // Pitch is typically inverted
+            var mouseDelta = (float2)controls.Player.LookDelta.ReadValue<Vector2>();
+            ApplyLookDelta(mouseDelta * mouseSensitivity, invertY);
 
-                // Clamp the vertical angle to prevent looking straight up/down and flipping
-                _accumulatedLook.y = math.clamp(_accumulatedLook.y, -85f, 85f);
+            jump = controls.Player.Jump.triggered || controls.FPS.Jump.triggered;
+            shoot = controls.FPS.ShootSingle.IsPressed() || controls.Player.Attack.IsPressed();
+            reload = controls.FPS.Reload.triggered;
+            sprint = controls.Player.Sprint.IsPressed();
+        }
 
-                // Assign the full, accumulated angle to the input struct
-                playerInput.LookYawPitchDegrees = _accumulatedLook;
+        if (Gamepad.current != null)
+        {
+            var pad = Gamepad.current;
+            var stickMove = (float2)pad.leftStick.ReadValue();
+            if (math.lengthsq(stickMove) > math.lengthsq(moveVector))
+            {
+                moveVector = stickMove;
+            }
 
-                input.ValueRW.SetInput(0, playerInput);
-                movementInput.ValueRW.SetInput(0, playerInput);
+            ApplyLookDelta((float2)pad.rightStick.ReadValue() * stickSensitivity * dt, invertY);
+
+            jump |= pad.buttonSouth.wasPressedThisFrame;
+            shoot |= pad.rightTrigger.isPressed || pad.rightShoulder.isPressed;
+            reload |= pad.buttonWest.wasPressedThisFrame;
+            sprint |= pad.leftStickButton.isPressed || pad.leftTrigger.isPressed;
+        }
+
+        SampleTouchControls(ref moveVector, mouseSensitivity, invertY);
+
+        jump |= GameplayInputState.MobileJumpHeld && !_prevMobileJump;
+        shoot |= GameplayInputState.MobileFireHeld;
+        reload |= GameplayInputState.MobileReloadPressed && !_prevMobileReload;
+        sprint |= GameplayInputState.MobileSprintHeld;
+
+        _prevMobileJump = GameplayInputState.MobileJumpHeld;
+        _prevMobileReload = GameplayInputState.MobileReloadPressed;
+
+        var recoil = GameplayInputState.ConsumeRecoil();
+        _accumulatedLook.x += recoil.x;
+        _accumulatedLook.y += invertY ? recoil.y : -recoil.y;
+        _accumulatedLook.y = math.clamp(_accumulatedLook.y, -85f, 85f);
+
+        playerInput.MoveInput = math.length(moveVector) > 1f ? math.normalizesafe(moveVector) : moveVector;
+        playerInput.LookYawPitchDegrees = _accumulatedLook;
+        playerInput.SetFlag(PlayerInput.InputFlag.Jump, jump);
+        playerInput.SetFlag(PlayerInput.InputFlag.Shoot, shoot);
+        playerInput.SetFlag(PlayerInput.InputFlag.Reload, reload);
+        playerInput.SetFlag(PlayerInput.InputFlag.Sprint, sprint);
+    }
+
+    private void ApplyLookDelta(float2 lookDelta, bool invertY)
+    {
+        _accumulatedLook.x += lookDelta.x;
+        _accumulatedLook.y += invertY ? lookDelta.y : -lookDelta.y;
+        _accumulatedLook.y = math.clamp(_accumulatedLook.y, -85f, 85f);
+    }
+
+    private void SampleTouchControls(ref float2 moveVector, float mouseSensitivity, bool invertY)
+    {
+        var touchscreen = Touchscreen.current;
+        if (touchscreen == null)
+        {
+            _leftStickActive = false;
+            return;
+        }
+
+        float halfWidth = Screen.width * 0.5f;
+        bool leftStickTouched = false;
+
+        for (int i = 0; i < touchscreen.touches.Count; i++)
+        {
+            var touch = touchscreen.touches[i];
+            if (!touch.press.isPressed)
+            {
+                continue;
+            }
+
+            var pos = touch.position.ReadValue();
+            if (pos.x < halfWidth)
+            {
+                if (!_leftStickActive)
+                {
+                    _leftStickOrigin = pos;
+                    _leftStickActive = true;
+                }
+
+                leftStickTouched = true;
+                var stick = Vector2.ClampMagnitude((pos - _leftStickOrigin) / 110f, 1f);
+                moveVector = new float2(stick.x, stick.y);
             }
             else
             {
-                Debug.LogWarning($"[ClientInputReaderSystem] Input user is invalid");
+                ApplyLookDelta((float2)touch.delta.ReadValue() * mouseSensitivity * 0.12f, invertY);
             }
         }
-    }
 
-    private void ProcessGameplayInput(in InputSystem_Actions controls, ref PlayerInput playerInput)
-    {
-        playerInput.SetFlag(PlayerInput.InputFlag.Jump, controls.Player.Jump.triggered);
-        playerInput.SetFlag(PlayerInput.InputFlag.Shoot, controls.FPS.ShootSingle.IsPressed());
-        playerInput.SetFlag(PlayerInput.InputFlag.Reload, controls.FPS.Reload.triggered);
+        if (!leftStickTouched)
+        {
+            _leftStickActive = false;
+        }
     }
 }

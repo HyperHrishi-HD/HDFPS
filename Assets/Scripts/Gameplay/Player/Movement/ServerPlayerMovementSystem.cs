@@ -247,9 +247,10 @@ namespace Unity.MP_FPS
                     if (predictedPlayer.ValueRO.ReloadTimer <= 0f)
                     {
                         predictedPlayer.ValueRW.ControllerState.IsReloadingState = false;
-                        var weaponData =
-                            WeaponManager.Instance.WeaponRegistry.GetWeaponData(
-                                predictedPlayer.ValueRO.EquippedWeaponID);
+                        var weaponData = WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null
+                            ? WeaponManager.Instance.WeaponRegistry.GetWeaponData(
+                                predictedPlayer.ValueRO.EquippedWeaponID)
+                            : null;
                         if (weaponData != null)
                         {
                             predictedPlayer.ValueRW.CurrentAmmo = weaponData.MagazineSize;
@@ -265,7 +266,17 @@ namespace Unity.MP_FPS
                          .WithAll<Simulate, GhostGameObjectLink>())
             {
                 var ghostLink = SystemAPI.ManagedAPI.GetComponent<GhostGameObjectLink>(entity);
+                if (ghostLink.LinkedInstance == null)
+                {
+                    continue;
+                }
+
                 var playerGhost = ghostLink.LinkedInstance.GetComponent<PlayerGhost>();
+                if (playerGhost == null || playerGhost.CameraTarget == null)
+                {
+                    continue;
+                }
+
                 var predictedClient = predictedClientInputComponentLookup[inputLookup.ValueRO.ClientCommandInputEntity];
                 if (predictedClient.InputCount > 0)
                 {
@@ -278,8 +289,9 @@ namespace Unity.MP_FPS
 
                     predictedPlayer.ValueRW.ControllerState.Shoot = false;
 
-                    var weaponData =
-                        WeaponManager.Instance.WeaponRegistry.GetWeaponData(predictedPlayer.ValueRO.EquippedWeaponID);
+                    var weaponData = WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null
+                        ? WeaponManager.Instance.WeaponRegistry.GetWeaponData(predictedPlayer.ValueRO.EquippedWeaponID)
+                        : null;
                     if (weaponData != null)
                     {
                         bool wantsToReload = commandInput.PlayerInput.Reload;
@@ -343,8 +355,7 @@ namespace Unity.MP_FPS
 
                                                 if (shooterNetworkId == targetNetworkId)
                                                 {
-                                                    //skip hitting self
-                                                    continue;
+                                                    break;
                                                 }
 
                                                 var healthBeforeDamage = targetPredictedPlayer.ValueRO.CurrentHealth;

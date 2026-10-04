@@ -41,8 +41,8 @@ namespace Unity.MP_FPS
             GameSettings.Instance.IsPauseMenuOpen = false;
             await DisconnectAndUnloadWorlds();
             
-            // Restart the main menu scene.
-            Start();
+            // Restart the main menu presentation without re-entering MonoBehaviour.Start unsafely.
+            await InitializePresentationAsync();
             
             Utils.SetCursorVisible(true);
             

@@ -208,19 +208,46 @@ namespace Unity.MP_FPS
         {
             var predictedPlayerGhost = ReadGhostComponentData<PredictedPlayerGhost>();
             var controllerState = predictedPlayerGhost.ControllerState;
-            if (Role == MultiplayerRole.ClientOwned)
+            if (Role == MultiplayerRole.ClientOwned && CameraTarget != null)
             {
-                CameraTarget.transform.rotation = Quaternion.Euler(controllerState.PitchDegrees,
-                    Camera.main.transform.rotation.eulerAngles.y,
-                    Camera.main.transform.rotation.eulerAngles.z);
+                float yaw = controllerState.YawDegrees;
+                float pitch = controllerState.PitchDegrees;
+                if (math.lengthsq(predictedPlayerGhost.LocalLookYawPitchDegrees) > 0.0001f)
+                {
+                    yaw = predictedPlayerGhost.LocalLookYawPitchDegrees.x;
+                    pitch = predictedPlayerGhost.LocalLookYawPitchDegrees.y;
+                }
+
+                CameraTarget.transform.rotation = Quaternion.Euler(pitch, yaw, 0f);
+
+                if (m_PlayerCamera != null && controllerState.MovementType == FirstPersonController.MovementType.Standing)
+                {
+                    float moveAmount = math.abs(controllerState.AnimatorTargetSpeed);
+                    if (moveAmount > 0.1f)
+                    {
+                        float bobSpeed = math.lerp(8f, 14f, math.saturate(moveAmount / 8f));
+                        float bob = math.sin(Time.time * bobSpeed) * 0.012f * math.saturate(moveAmount / 4.7f);
+                        m_PlayerCamera.transform.localPosition = new Vector3(bob * 0.35f, math.abs(bob), 0f);
+                    }
+                    else
+                    {
+                        m_PlayerCamera.transform.localPosition = Vector3.Lerp(
+                            m_PlayerCamera.transform.localPosition, Vector3.zero, 1f - math.exp(-12f * deltaTime));
+                    }
+                }
             }
 
             var rot = Quaternion.Euler(controllerState.PitchDegrees, 0.0f, 0.0f);
-            ReticlePoint.localPosition = rot * m_ReticleVector;
+            if (ReticlePoint != null)
+            {
+                ReticlePoint.localPosition = rot * m_ReticleVector;
+            }
 
-            //TODO: The following is a temporary fix for animation root moves (Robot Jump for example)
-            m_OtherPlayerVisuals.transform.localPosition = Vector3.zero;
-            m_OtherPlayerVisuals.transform.localRotation = Quaternion.identity;
+            if (m_OtherPlayerVisuals != null)
+            {
+                m_OtherPlayerVisuals.transform.localPosition = Vector3.zero;
+                m_OtherPlayerVisuals.transform.localRotation = Quaternion.identity;
+            }
         }
 
         public bool SetPlayerPositionFromRPC(float3 rpcPosition, float positionErrorSq)

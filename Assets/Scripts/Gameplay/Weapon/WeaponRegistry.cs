@@ -1,4 +1,4 @@
-﻿using System.Collections.Generic;
+using System.Collections.Generic;
 using UnityEngine;
 
 namespace Unity.MP_FPS
@@ -10,12 +10,12 @@ namespace Unity.MP_FPS
 
         public WeaponData GetWeaponData(uint weaponID)
         {
-            if (weaponID < Weapons.Count)
+            if (Weapons == null || weaponID >= (uint)Weapons.Count)
             {
-                return Weapons[(int)weaponID];
+                return null;
             }
 
-            return null; // or a default weapon
+            return Weapons[(int)weaponID];
         }
     }
 }

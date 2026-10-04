@@ -14,7 +14,7 @@ public partial class PlayerPredictionSystem : SingletonSystem<PlayerPredictionSy
 {
     // logging and diagnostics
     private static uint s_PlayerMovementTick;
-    private static readonly int s_HitscanLayerMask = ~LayerMask.GetMask("ClientPlayer");
+    private static readonly int s_HitscanLayerMask = ~LayerMask.GetMask("Ignore Raycast", "FirstPersonOverlay");
     private static readonly int s_ProjectileTargetLayerMask = ~LayerMask.GetMask( "ClientPlayer", "ServerPlayer" );
     
     public static uint PlayerMovementTick => s_PlayerMovementTick;
@@ -99,7 +99,9 @@ public partial class PlayerPredictionSystem : SingletonSystem<PlayerPredictionSy
                 if (predictedPlayer.ValueRO.ReloadTimer <= 0f)
                 {
                     predictedPlayer.ValueRW.ControllerState.IsReloadingState = false;
-                    var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(predictedPlayer.ValueRO.EquippedWeaponID);
+                    var weaponData = WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null
+                        ? WeaponManager.Instance.WeaponRegistry.GetWeaponData(predictedPlayer.ValueRO.EquippedWeaponID)
+                        : null;
                     if (weaponData != null)
                     {
                         predictedPlayer.ValueRW.CurrentAmmo = weaponData.MagazineSize;
@@ -203,7 +205,9 @@ public partial class PlayerPredictionSystem : SingletonSystem<PlayerPredictionSy
                     {
                         predictedPlayer.ValueRW.LocalLookYawPitchDegrees = input.LookYawPitchDegrees;
 
-                        var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(predictedPlayer.ValueRO.EquippedWeaponID);
+                        var weaponData = WeaponManager.Instance != null && WeaponManager.Instance.WeaponRegistry != null
+                            ? WeaponManager.Instance.WeaponRegistry.GetWeaponData(predictedPlayer.ValueRO.EquippedWeaponID)
+                            : null;
                         if (weaponData != null)
                         {
                             bool wantsToReload = input.Reload;
@@ -225,33 +229,49 @@ public partial class PlayerPredictionSystem : SingletonSystem<PlayerPredictionSy
                                 predictedPlayer.ValueRW.CurrentAmmo--;
                                 predictedPlayer.ValueRW.LastShotTick = commandInput.Tick.TickIndexForValidTick;
 
-                                var playerGhost = controllerLink.Controller.GetComponent<PlayerGhost>();
+                                var playerGhost = controllerLink.Controller != null
+                                    ? controllerLink.Controller.GetComponent<PlayerGhost>()
+                                    : null;
                                 var controllerState = predictedPlayer.ValueRO.ControllerState;
                                 var aimRotation = quaternion.Euler(
                                     math.radians(controllerState.PitchDegrees),
                                     math.radians(controllerState.YawDegrees),
                                     0f);
 
-                                float3 eyePosition = playerGhost.CameraTarget.position;
+                                float3 eyePosition = playerGhost != null && playerGhost.CameraTarget != null
+                                    ? (float3)playerGhost.CameraTarget.position
+                                    : controllerState.CurrentPosition + new float3(0f, 1.6f, 0f);
                                 var aimDirection = math.mul(aimRotation, new float3(0, 0, 1));
-                                var shotOriginPosition = playerGhost.VisualShotOrigin1P.position;
+                                var shotOriginPosition = playerGhost != null && playerGhost.VisualShotOrigin1P != null
+                                    ? playerGhost.VisualShotOrigin1P.position
+                                    : (Vector3)(eyePosition + aimDirection * 0.5f);
                                     
                                 if (VisualEffectManager.ClientInstance != null)
                                 {
                                     VisualEffectManager.ClientInstance.SpawnMuzzleFlash(playerGhost, predictedPlayer.ValueRO.EquippedWeaponID, true);
                                 }
 
+                                GameplayInputState.AddRecoil(weaponData.Type == WeaponType.Hitscan ? 0.55f : 1.15f,
+                                    UnityEngine.Random.Range(-0.18f, 0.18f));
+
                                 if (weaponData.Type == WeaponType.Hitscan)
                                 {
                                     if (Physics.Raycast(eyePosition, aimDirection, out RaycastHit cosmeticHit,
-                                        weaponData.HitscanRange, s_HitscanLayerMask))
+                                        weaponData.HitscanRange, s_HitscanLayerMask) &&
+                                        (playerGhost == null || !cosmeticHit.collider.transform.IsChildOf(playerGhost.transform)))
                                     {
-                                        Debug.DrawLine(shotOriginPosition, cosmeticHit.point, Color.yellow, 0.3f);
-                                    }
-                                    else
-                                    {
-                                        Vector3 endPoint = eyePosition + aimDirection * weaponData.HitscanRange;
-                                        Debug.DrawLine(shotOriginPosition, endPoint, Color.cyan, 0.3f);
+                                        if (VisualEffectManager.ClientInstance != null)
+                                        {
+                                            VisualEffectManager.ClientInstance.SpawnImpact(weaponData, cosmeticHit.point,
+                                                cosmeticHit.normal);
+                                        }
+
+                                        int hitLayer = cosmeticHit.collider.gameObject.layer;
+                                        if (hitLayer == LayerMask.NameToLayer("ServerPlayer") ||
+                                            hitLayer == LayerMask.NameToLayer("ClientPlayer"))
+                                        {
+                                            GameplayInputState.NotifyHit();
+                                        }
                                     }
                                 }
                                 else if (weaponData.Type == WeaponType.Projectile)

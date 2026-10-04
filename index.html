@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+  <title>HDFPS</title>
+  <meta name="description" content="HDFPS — a sci-fi arena first-person shooter. Drop in, pick a rifle or shotgun, and fight." />
+  <link rel="canonical" href="https://hdfps.vercel.app/" />
+  <meta property="og:title" content="HDFPS" />
+  <meta property="og:description" content="A sci-fi arena FPS. Click in, lock on, own the map." />
+  <meta property="og:url" content="https://hdfps.vercel.app/" />
+  <meta property="og:type" content="website" />
+  <meta name="theme-color" content="#15161c" />
+  <link rel="icon" href="./favicon.svg" type="image/svg+xml" />
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div id="game-root">
+    <canvas id="view"></canvas>
+
+    <div id="hud" class="hidden">
+      <div id="crosshair">
+        <span class="ch ch-h"></span>
+        <span class="ch ch-v"></span>
+        <span id="hit-marker"></span>
+      </div>
+      <div id="damage-vignette"></div>
+      <div id="kill-feed"></div>
+      <div id="health-wrap">
+        <div class="bar-label">HEALTH</div>
+        <div class="bar"><i id="health-fill"></i></div>
+      </div>
+      <div id="ammo-wrap">
+        <div id="weapon-name">ASSAULT RIFLE</div>
+        <div id="reload-label" class="hidden">RELOADING</div>
+        <div class="ammo-row">
+          <span id="ammo-text">30 / 30</span>
+          <div class="bar ammo"><i id="ammo-fill"></i></div>
+        </div>
+      </div>
+      <div id="score-chip"><span id="kills">0</span> KILLS</div>
+      <div id="mobile-look" class="mobile-only"></div>
+      <div id="mobile-move" class="mobile-only">
+        <div id="stick-base"><div id="stick-knob"></div></div>
+      </div>
+      <div id="mobile-actions" class="mobile-only">
+        <button id="btn-reload" type="button">R</button>
+        <button id="btn-jump" type="button">JUMP</button>
+        <button id="btn-sprint" type="button">SPRINT</button>
+        <button id="btn-fire" type="button">FIRE</button>
+      </div>
+    </div>
+
+    <div id="respawn" class="overlay hidden">
+      <div class="panel">
+        <h2>ELIMINATED</h2>
+        <p id="respawn-msg">RESPAWNING IN 5</p>
+      </div>
+    </div>
+
+    <div id="pause" class="overlay hidden">
+      <div class="panel">
+        <h2>PAUSED</h2>
+        <label>Mouse Sensitivity <input id="sens" type="range" min="0.4" max="12" step="0.1" value="3.7" /></label>
+        <label class="check"><input id="invert-y" type="checkbox" /> Invert Y</label>
+        <button id="resume" type="button">Resume</button>
+        <button id="pause-menu" type="button">Main Menu</button>
+      </div>
+    </div>
+
+    <div id="menu" class="overlay">
+      <div class="panel menu-panel">
+        <p class="kicker">MULTIPLAYER FPS</p>
+        <h1>HDFPS</h1>
+        <p class="sub">Host locally. Drop in. Own the arena.</p>
+        <label>Player Name <input id="player-name" type="text" maxlength="18" autocomplete="nickname" /></label>
+        <fieldset>
+          <legend>Choose Character</legend>
+          <label class="radio"><input type="radio" name="weapon" value="rifle" checked /> Rifle</label>
+          <label class="radio"><input type="radio" name="weapon" value="shotgun" /> Shotgun</label>
+        </fieldset>
+        <button id="play" type="button" class="primary">Start Match</button>
+        <p class="hint">WASD move · Mouse look · Left click fire · Shift sprint · R reload · Space jump · Esc pause</p>
+      </div>
+    </div>
+  </div>
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "./vendor/three.module.js"
+      }
+    }
+  </script>
+  <script type="module" src="./game.js"></script>
+</body>
+</html>

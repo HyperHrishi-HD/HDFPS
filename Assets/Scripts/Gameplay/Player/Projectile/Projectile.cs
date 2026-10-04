@@ -41,9 +41,27 @@ namespace Unity.MP_FPS
         {
             if (GhostGameObject == null || !GhostGameObject.IsGhostLinked())
             {
-                var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(_weaponId);
-                Move(Time.deltaTime, weaponData.ProjectileSpeed);
+                var weaponData = GetWeaponData();
+                if (weaponData != null)
+                {
+                    Move(Time.deltaTime, weaponData.ProjectileSpeed);
+                }
             }
+        }
+
+        private static WeaponData GetWeaponData(uint weaponId)
+        {
+            if (WeaponManager.Instance == null || WeaponManager.Instance.WeaponRegistry == null)
+            {
+                return null;
+            }
+
+            return WeaponManager.Instance.WeaponRegistry.GetWeaponData(weaponId);
+        }
+
+        private WeaponData GetWeaponData()
+        {
+            return GetWeaponData(_weaponId);
         }
 
         public void SetWeaponId(uint weaponId)
@@ -62,7 +80,12 @@ namespace Unity.MP_FPS
 
         public void UpdateServer(float deltaTime)
         {
-            var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(_weaponId);
+            var weaponData = GetWeaponData();
+            if (weaponData == null)
+            {
+                return;
+            }
+
             Move(deltaTime, weaponData.ProjectileSpeed);
 
             _localTime += deltaTime;
@@ -82,7 +105,12 @@ namespace Unity.MP_FPS
 
         public void UpdateClient(float deltaTime)
         {
-            var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(_weaponId);
+            var weaponData = GetWeaponData();
+            if (weaponData == null)
+            {
+                return;
+            }
+
             Move(deltaTime, weaponData.ProjectileSpeed);
         }
 
@@ -152,7 +180,12 @@ namespace Unity.MP_FPS
             ProjectileData projectileData,
             ComponentLookup<PredictedPlayerGhost> playerGhostLookup, ComponentLookup<GhostOwner> ghostOwnerLookup)
         {
-            var weaponData = WeaponManager.Instance.WeaponRegistry.GetWeaponData(projectileData.WeaponID);
+            var weaponData = GetWeaponData(projectileData.WeaponID);
+            if (weaponData == null)
+            {
+                GhostGameObject.DestroyEntity();
+                return;
+            }
             int shooterNetworkId = projectileData.OwnerNetworkId;
 
             var serverCurrentTick = GhostGameObject.GetCurrentTick();
@@ -160,7 +193,6 @@ namespace Unity.MP_FPS
             // Check the behavior type to decide the damage logic.
             if (weaponData.Behavior == ProjectileBehavior.AreaOfEffect)
             {
-                // ROCKET LOGIC 
                 var playersInRadius = UnityEngine.Physics.OverlapSphere(impactPosition, weaponData.AoeRadius,
                     LayerMask.GetMask("ServerPlayer"));
 
@@ -169,23 +201,18 @@ namespace Unity.MP_FPS
                     if (GhostGameObject.TryFindGhostGameObject(playerCollider.gameObject, out var hitGhostObject) &&
                         playerGhostLookup.HasComponent(hitGhostObject.LinkedEntity))
                     {
-                        // Get the owner of the hit player and compare it to the projectile's owner.
                         var hitPlayerOwner = ghostOwnerLookup[hitGhostObject.LinkedEntity];
                         int targetNetworkId = hitPlayerOwner.NetworkId;
                         if (targetNetworkId == shooterNetworkId)
                         {
-                            continue; // Skip self-damage
+                            continue;
                         }
 
                         var targetPredictedPlayer = playerGhostLookup.GetRefRW(hitGhostObject.LinkedEntity);
 
                         var healthBeforeDamage = targetPredictedPlayer.ValueRO.CurrentHealth;
                         targetPredictedPlayer.ValueRW.CurrentHealth -= weaponData.Damage;
-
-                        // Set the simple flag for animations
                         targetPredictedPlayer.ValueRW.ControllerState.IsHit = true;
-
-                        // Set the detailed data for the 1P visual effect
                         targetPredictedPlayer.ValueRW.LastDamageAmount = weaponData.Damage;
                         targetPredictedPlayer.ValueRW.LastHitTick = serverCurrentTick;
 
@@ -194,28 +221,13 @@ namespace Unity.MP_FPS
                             if (LeaderboardManager.Instance != null)
                             {
                                 LeaderboardManager.Instance.AddKill(shooterNetworkId, targetNetworkId);
-                                Debug.Log(
-                                    $"[Server] Player {shooterNetworkId.ToString()} killed player {targetNetworkId.ToString()} (AOE).");
-                            }
-                            else
-                            {
-                                Debug.LogWarning("[Server] LeaderboardManager instance not found. Cannot add kill.");
                             }
                         }
-
-                        float gizmoDuration = 4.0f; // How long the gizmo will be visible in seconds
-                        float gizmoSize = 0.25f; // The length of the lines for the cross marker
-
-                        Debug.DrawRay(impactPosition - Vector3.up * gizmoSize, Vector3.up * gizmoSize * 2, Color.yellow,
-                            gizmoDuration);
-                        Debug.DrawRay(impactPosition - Vector3.right * gizmoSize, Vector3.right * gizmoSize * 2,
-                            Color.yellow, gizmoDuration);
-                        Debug.DrawRay(impactPosition - Vector3.forward * gizmoSize, Vector3.forward * gizmoSize * 2,
-                            Color.yellow, gizmoDuration);
-                        // After the impact is handled, the projectile must be destroyed.
-                        GhostGameObject.DestroyEntity();
                     }
                 }
+
+                DrawGizmoAtPosition(impactPosition);
+                GhostGameObject.DestroyEntity();
             }
             else // DirectDamage
             {

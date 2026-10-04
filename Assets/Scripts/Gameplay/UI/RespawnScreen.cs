@@ -1,4 +1,4 @@
-﻿using Unity.Entities;
+using Unity.Entities;
 using Unity.NetCode;
 using UnityEngine;
 using UnityEngine.UIElements;
@@ -15,13 +15,17 @@ namespace Unity.MP_FPS.UI
         private World m_ClientWorld;
         private EntityManager m_EntityManager;
         private EntityQuery m_LocalPlayerQuery;
+        private bool m_HasPlayerQuery;
 
         private float m_RespawnCountdown;
         private const float RESPAWN_DURATION = 5.0f;
 
         private void Awake()
         {
-            RespawnCamera.gameObject.SetActive(false);
+            if (RespawnCamera != null)
+            {
+                RespawnCamera.gameObject.SetActive(false);
+            }
         }
 
         void OnEnable()
@@ -32,6 +36,9 @@ namespace Unity.MP_FPS.UI
 
         private void InitializeEcs()
         {
+            m_ClientWorld = null;
+            m_HasPlayerQuery = false;
+
             foreach (var world in World.All)
             {
                 if (world.IsClient())
@@ -42,34 +49,43 @@ namespace Unity.MP_FPS.UI
                 }
             }
 
-            if (m_EntityManager != null)
+            if (m_ClientWorld != null && m_ClientWorld.IsCreated)
             {
                 m_LocalPlayerQuery = m_EntityManager.CreateEntityQuery(
                     ComponentType.ReadOnly<PredictedPlayerGhost>(),
                     ComponentType.ReadOnly<GhostOwnerIsLocal>()
                 );
+                m_HasPlayerQuery = true;
             }
         }
 
         void LateUpdate()
         {
-            if (GameSettings.Instance.GameState != GlobalGameState.InGame)
+            if (m_RespawnScreen == null)
+            {
+                return;
+            }
+
+            if (GameSettings.Instance == null || GameSettings.Instance.GameState != GlobalGameState.InGame)
             {
                 m_RespawnScreen.style.display = DisplayStyle.None;
                 return;
             }
 
-            if (m_ClientWorld == null || !m_ClientWorld.IsCreated)
+            if (m_ClientWorld == null || !m_ClientWorld.IsCreated || !m_HasPlayerQuery)
             {
                 InitializeEcs();
-                if (m_ClientWorld == null) return;
+                if (m_ClientWorld == null || !m_HasPlayerQuery) return;
             }
 
             bool isPlayerAlive = m_LocalPlayerQuery.HasSingleton<PredictedPlayerGhost>();
 
             if (isPlayerAlive)
             {
-                RespawnCamera.gameObject.SetActive(false);
+                if (RespawnCamera != null)
+                {
+                    RespawnCamera.gameObject.SetActive(false);
+                }
                 // Player is alive, hide the respawn screen
                 if (m_RespawnScreen.style.display == DisplayStyle.Flex)
                 {
@@ -78,7 +94,10 @@ namespace Unity.MP_FPS.UI
             }
             else
             {
-                RespawnCamera.gameObject.SetActive(true);
+                if (RespawnCamera != null)
+                {
+                    RespawnCamera.gameObject.SetActive(true);
+                }
                 // Player is dead, show the respawn screen and update the timer
                 if (m_RespawnScreen.style.display == DisplayStyle.None)
                 {
